@@ -3,6 +3,7 @@ import nodePath from 'node:path';
 import { Types } from 'mongoose';
 import { Expense, type ExpenseDoc } from '../models/index.js';
 import { Errors } from '../utils/errors.js';
+import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
 import type {
   CreateExpenseInput,
   UpdateExpenseInput,
@@ -20,7 +21,9 @@ function deleteUploadedFile(url: string) {
 }
 
 function toObjectId(id: string): Types.ObjectId {
-  if (!Types.ObjectId.isValid(id)) throw Errors.badRequest('Invalid id');
+  if (!Types.ObjectId.isValid(id)) {
+    throw Errors.badRequest(ErrorMessages.EXPENSE_INVALID_ID, ErrorCodes.EXPENSE_INVALID_ID);
+  }
   return new Types.ObjectId(id);
 }
 
@@ -61,7 +64,7 @@ export const expenseService = {
 
   async getOne(userId: string, id: string): Promise<ExpenseDoc> {
     const doc = await Expense.findOne({ _id: toObjectId(id), userId: toObjectId(userId) });
-    if (!doc) throw Errors.notFound('Expense not found');
+    if (!doc) throw Errors.notFound(ErrorMessages.EXPENSE_NOT_FOUND, ErrorCodes.EXPENSE_NOT_FOUND);
     return doc;
   },
 
@@ -77,13 +80,13 @@ export const expenseService = {
       { $set: input },
       { new: true },
     );
-    if (!doc) throw Errors.notFound('Expense not found');
+    if (!doc) throw Errors.notFound(ErrorMessages.EXPENSE_NOT_FOUND, ErrorCodes.EXPENSE_NOT_FOUND);
     return doc;
   },
 
   async remove(userId: string, id: string): Promise<void> {
     const doc = await Expense.findOne({ _id: toObjectId(id), userId: toObjectId(userId) });
-    if (!doc) throw Errors.notFound('Expense not found');
+    if (!doc) throw Errors.notFound(ErrorMessages.EXPENSE_NOT_FOUND, ErrorCodes.EXPENSE_NOT_FOUND);
     if (doc.receiptUrl) deleteUploadedFile(doc.receiptUrl);
     await doc.deleteOne();
   },

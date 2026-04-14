@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { User, type UserDoc } from '../models/index.js';
 import { redis } from '../db/redis.js';
 import { Errors } from '../utils/errors.js';
+import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
 import { emailService } from './email.service.js';
 import type {
   SignUpInput,
@@ -22,7 +23,7 @@ function generateOpaqueToken(): string {
 export const authService = {
   async signUp(input: SignUpInput): Promise<UserDoc> {
     const exists = await User.findOne({ email: input.email }).lean();
-    if (exists) throw Errors.conflict('Email already registered');
+    if (exists) throw Errors.conflict(ErrorMessages.EMAIL_TAKEN, ErrorCodes.EMAIL_TAKEN);
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     const user = await User.create({
@@ -41,10 +42,14 @@ export const authService = {
 
   async signIn(input: SignInInput): Promise<UserDoc> {
     const user = await User.findOne({ email: input.identifier.toLowerCase().trim() });
-    if (!user) throw Errors.unauthorized('Invalid credentials');
+    if (!user) {
+      throw Errors.unauthorized(ErrorMessages.INVALID_CREDENTIALS, ErrorCodes.INVALID_CREDENTIALS);
+    }
 
     const ok = await bcrypt.compare(input.password, user.passwordHash);
-    if (!ok) throw Errors.unauthorized('Invalid credentials');
+    if (!ok) {
+      throw Errors.unauthorized(ErrorMessages.INVALID_CREDENTIALS, ErrorCodes.INVALID_CREDENTIALS);
+    }
 
     return user;
   },
@@ -64,7 +69,9 @@ export const authService = {
 
   async resetPassword(input: ResetPasswordInput): Promise<void> {
     const userId = await redis.get(`pw_reset:${input.token}`);
-    if (!userId) throw Errors.badRequest('Invalid or expired reset token');
+    if (!userId) {
+      throw Errors.badRequest(ErrorMessages.RESET_TOKEN_INVALID, ErrorCodes.RESET_TOKEN_INVALID);
+    }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     await User.updateOne({ _id: userId }, { $set: { passwordHash } });
@@ -73,14 +80,16 @@ export const authService = {
 
   async verifyEmail(token: string): Promise<UserDoc> {
     const userId = await redis.get(`email_verify:${token}`);
-    if (!userId) throw Errors.badRequest('Invalid or expired verification token');
+    if (!userId) {
+      throw Errors.badRequest(ErrorMessages.VERIFY_TOKEN_INVALID, ErrorCodes.VERIFY_TOKEN_INVALID);
+    }
 
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: { emailVerified: true } },
       { new: true },
     );
-    if (!user) throw Errors.notFound('User not found');
+    if (!user) throw Errors.notFound(ErrorMessages.USER_NOT_FOUND, ErrorCodes.USER_NOT_FOUND);
 
     await redis.del(`email_verify:${token}`);
     return user;

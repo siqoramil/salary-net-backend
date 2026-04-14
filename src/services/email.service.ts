@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 export interface EmailService {
   sendVerificationEmail(to: string, token: string): Promise<{ ok: true; provider: string }>;
   sendPasswordResetEmail(to: string, token: string): Promise<{ ok: true; provider: string }>;
+  sendEmailChangeCode(to: string, code: string): Promise<{ ok: true; provider: string }>;
 }
 
 // NOTE: Real SMTP integration via nodemailer can be added once SMTP creds are available.
@@ -30,6 +31,17 @@ export const emailService: EmailService = {
     }
     // eslint-disable-next-line no-console
     console.log(`[Email:smtp-stub] would send reset to ${to}: ${link}`);
+    return { ok: true, provider: 'smtp-stub' };
+  },
+
+  async sendEmailChangeCode(to, code) {
+    if (!env.SMTP_HOST) {
+      // eslint-disable-next-line no-console
+      console.log(`[Email:dev] email-change code ${to} -> ${code}`);
+      return { ok: true, provider: 'dev-console' };
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[Email:smtp-stub] would send email-change code to ${to}: ${code}`);
     return { ok: true, provider: 'smtp-stub' };
   },
 };

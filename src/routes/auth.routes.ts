@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { Errors } from '../utils/errors.js';
+import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
 import { authService } from '../services/auth.service.js';
 import {
   signUpSchema,
@@ -101,14 +102,14 @@ export async function authRoutes(fastify: FastifyInstance) {
           { key: env.JWT_REFRESH_SECRET },
         );
       } catch {
-        throw Errors.unauthorized('Invalid refresh token');
+        throw Errors.unauthorized(ErrorMessages.REFRESH_INVALID, ErrorCodes.REFRESH_INVALID);
       }
       if (decoded.type !== 'refresh') {
-        throw Errors.unauthorized('Invalid token type');
+        throw Errors.unauthorized(ErrorMessages.REFRESH_INVALID, ErrorCodes.REFRESH_INVALID);
       }
       const valid = await authService.isRefreshTokenValid(decoded.sub, req.body.refreshToken);
       if (!valid) {
-        throw Errors.unauthorized('Refresh token revoked');
+        throw Errors.unauthorized(ErrorMessages.REFRESH_REVOKED, ErrorCodes.REFRESH_REVOKED);
       }
       await authService.revokeRefreshToken(decoded.sub, req.body.refreshToken);
       return issueTokens(app, decoded.sub);

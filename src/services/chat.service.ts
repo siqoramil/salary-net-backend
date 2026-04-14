@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Conversation, Message, Expense, type MessageDoc } from '../models/index.js';
 import { Errors } from '../utils/errors.js';
+import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
 import { env } from '../config/env.js';
 import { Types } from 'mongoose';
 
@@ -109,7 +110,7 @@ export const chatService = {
       _id: new Types.ObjectId(conversationId),
       userId: new Types.ObjectId(userId),
     });
-    if (!conv) throw Errors.notFound('Conversation not found');
+    if (!conv) throw Errors.notFound(ErrorMessages.CONVERSATION_NOT_FOUND, ErrorCodes.CONVERSATION_NOT_FOUND);
 
     const filter: Record<string, unknown> = { conversationId: conv._id };
     if (beforeId) filter._id = { $lt: new Types.ObjectId(beforeId) };
@@ -123,7 +124,7 @@ export const chatService = {
       _id: new Types.ObjectId(conversationId),
       userId: new Types.ObjectId(userId),
     });
-    if (!conv) throw Errors.notFound('Conversation not found');
+    if (!conv) throw Errors.notFound(ErrorMessages.CONVERSATION_NOT_FOUND, ErrorCodes.CONVERSATION_NOT_FOUND);
 
     // Save user message
     await Message.create({
@@ -195,7 +196,7 @@ export const chatService = {
       _id: new Types.ObjectId(conversationId),
       userId: new Types.ObjectId(userId),
     });
-    if (!conv) throw Errors.notFound('Conversation not found');
+    if (!conv) throw Errors.notFound(ErrorMessages.CONVERSATION_NOT_FOUND, ErrorCodes.CONVERSATION_NOT_FOUND);
     await Message.deleteMany({ conversationId: conv._id });
   },
 };

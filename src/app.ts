@@ -20,6 +20,7 @@ import { connectMongo, disconnectMongo } from './db/connection.js';
 import { connectRedis, disconnectRedis } from './db/redis.js';
 import jwtPlugin from './plugins/jwt.plugin.js';
 import { AppError } from './utils/errors.js';
+import { ErrorCodes, ErrorMessages } from './utils/messages.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { expenseRoutes } from './routes/expense.routes.js';
 import { userRoutes } from './routes/user.routes.js';
@@ -100,9 +101,11 @@ export async function buildApp() {
   // ===== Error handler =====
   app.setErrorHandler((error: unknown, req, reply) => {
     if (error instanceof ZodError) {
+      const first = error.errors[0];
+      const friendly = first?.message ?? ErrorMessages.VALIDATION_FAILED;
       return reply.code(400).send({
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request',
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: friendly,
         details: error.flatten(),
       });
     }
@@ -113,18 +116,22 @@ export async function buildApp() {
         details: error.details,
       });
     }
-    const err = error as { validation?: unknown; message?: string };
+    const err = error as { validation?: { message?: string }[]; message?: string };
     if (err.validation) {
+      const first = err.validation[0]?.message ?? err.message;
       return reply.code(400).send({
-        code: 'VALIDATION_ERROR',
-        message: err.message ?? 'Validation failed',
+        code: ErrorCodes.VALIDATION_FAILED,
+        message: first ?? ErrorMessages.VALIDATION_FAILED,
         details: err.validation,
       });
     }
     req.log.error(error);
     return reply.code(500).send({
-      code: 'INTERNAL_ERROR',
-      message: env.NODE_ENV === 'production' ? 'Internal server error' : err.message ?? 'Internal',
+      code: ErrorCodes.INTERNAL_ERROR,
+      message:
+        env.NODE_ENV === 'production'
+          ? ErrorMessages.INTERNAL_ERROR
+          : err.message ?? ErrorMessages.INTERNAL_ERROR,
     });
   });
 
