@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: salary-net-server
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: yarn install && yarn build
+    startCommand: node dist/app.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
