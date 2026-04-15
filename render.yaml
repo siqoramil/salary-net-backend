@@ -4,6 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
+    nodeVersion: 20.18.0
     buildCommand: yarn install && yarn build
     startCommand: node dist/app.js
     envVars:

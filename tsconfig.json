@@ -13,6 +13,7 @@
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true,
+    "noEmitOnError": true,
     "removeComments": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
