@@ -24,8 +24,8 @@ const envSchema = z.object({
       (v) => v !== 'replace_with_another_strong_random_string_32_chars',
       'JWT_REFRESH_SECRET is still the example placeholder — generate a real secret',
     ),
-  JWT_ACCESS_TTL: z.string().default('15m'),
-  JWT_REFRESH_TTL: z.string().default('30d'),
+  JWT_ACCESS_TTL: z.string().default('30d'),
+  JWT_REFRESH_TTL: z.string().default('90d'),
 
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
