@@ -91,59 +91,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // ===== Get one =====
-  app.get(
-    '/:id',
-    {
-      schema: {
-        tags: ['expenses'],
-        security: [{ bearerAuth: [] }],
-        params: z.object({ id: z.string() }),
-        response: { 200: expenseResponseSchema },
-      },
-    },
-    async (req) => {
-      const doc = await expenseService.getOne(req.user.sub, req.params.id);
-      return serializeExpense(doc);
-    },
-  );
-
-  // ===== Update =====
-  app.patch(
-    '/:id',
-    {
-      schema: {
-        tags: ['expenses'],
-        security: [{ bearerAuth: [] }],
-        params: z.object({ id: z.string() }),
-        body: updateExpenseSchema,
-        response: { 200: expenseResponseSchema },
-      },
-    },
-    async (req) => {
-      const doc = await expenseService.update(req.user.sub, req.params.id, req.body);
-      return serializeExpense(doc);
-    },
-  );
-
-  // ===== Delete =====
-  app.delete(
-    '/:id',
-    {
-      schema: {
-        tags: ['expenses'],
-        security: [{ bearerAuth: [] }],
-        params: z.object({ id: z.string() }),
-        response: { 200: z.object({ ok: z.literal(true) }) },
-      },
-    },
-    async (req) => {
-      await expenseService.remove(req.user.sub, req.params.id);
-      return { ok: true as const };
-    },
-  );
-
-  // ===== Summary =====
+  // ===== Summary ===== (static routes before /:id)
   app.get(
     '/summary',
     {
@@ -224,5 +172,57 @@ export async function expenseRoutes(fastify: FastifyInstance) {
     },
     async (req) =>
       expenseService.trends(req.user.sub, req.query.from, req.query.to, req.query.granularity),
+  );
+
+  // ===== Get one =====
+  app.get(
+    '/:id',
+    {
+      schema: {
+        tags: ['expenses'],
+        security: [{ bearerAuth: [] }],
+        params: z.object({ id: z.string() }),
+        response: { 200: expenseResponseSchema },
+      },
+    },
+    async (req) => {
+      const doc = await expenseService.getOne(req.user.sub, req.params.id);
+      return serializeExpense(doc);
+    },
+  );
+
+  // ===== Update =====
+  app.patch(
+    '/:id',
+    {
+      schema: {
+        tags: ['expenses'],
+        security: [{ bearerAuth: [] }],
+        params: z.object({ id: z.string() }),
+        body: updateExpenseSchema,
+        response: { 200: expenseResponseSchema },
+      },
+    },
+    async (req) => {
+      const doc = await expenseService.update(req.user.sub, req.params.id, req.body);
+      return serializeExpense(doc);
+    },
+  );
+
+  // ===== Delete =====
+  app.delete(
+    '/:id',
+    {
+      schema: {
+        tags: ['expenses'],
+        security: [{ bearerAuth: [] }],
+        params: z.object({ id: z.string() }),
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (req) => {
+      await expenseService.remove(req.user.sub, req.params.id);
+      return { ok: true as const };
+    },
   );
 }

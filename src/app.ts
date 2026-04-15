@@ -43,9 +43,31 @@ export async function buildApp() {
   app.setSerializerCompiler(serializerCompiler);
 
   // ===== Plugins =====
-  await app.register(helmet, { contentSecurityPolicy: false });
+  await app.register(helmet, {
+    // CSP is disabled for the API because responses are JSON, not HTML,
+    // so there is nothing for a browser to execute. Other helmet headers
+    // (X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security,
+    // Referrer-Policy, etc.) remain enabled.
+    contentSecurityPolicy: false,
+  });
   await app.register(cors, {
-    origin: env.CORS_ORIGINS.length ? env.CORS_ORIGINS : true,
+    // Never fall back to a wildcard. In dev, allow the configured list
+    // plus any localhost/LAN origin. In production, require an explicit
+    // allow-list or reject the request.
+    origin(origin, cb) {
+      if (!origin) return cb(null, true); // native apps / curl / same-origin
+      if (env.CORS_ORIGINS.length && env.CORS_ORIGINS.includes(origin)) {
+        return cb(null, true);
+      }
+      if (env.NODE_ENV !== 'production') {
+        const devAllowed =
+          /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2|192\.168\.|172\.16\.|172\.17\.|172\.18\.|172\.19\.|172\.20\.|172\.21\.|172\.22\.|172\.23\.|172\.24\.|172\.25\.|172\.26\.|172\.27\.|172\.28\.|172\.29\.|172\.30\.|172\.31\.)(:\d+)?$/.test(
+            origin,
+          ) || origin.startsWith('exp://');
+        if (devAllowed) return cb(null, true);
+      }
+      cb(new Error('Origin not allowed'), false);
+    },
     credentials: true,
   });
   await app.register(rateLimit, {

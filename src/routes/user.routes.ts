@@ -10,6 +10,7 @@ import { OtpCode } from '../models/otpCode.model.js';
 import { Errors } from '../utils/errors.js';
 import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
 import { passwordSchema, localeSchema, emailSchema } from '../schemas/auth.schema.js';
+import { authService } from '../services/auth.service.js';
 import { emailService } from '../services/email.service.js';
 import type { UserDoc } from '../models/user.model.js';
 
@@ -251,6 +252,11 @@ export async function userRoutes(fastify: FastifyInstance) {
 
       user.passwordHash = await bcrypt.hash(req.body.newPassword, 12);
       await user.save();
+
+      // Security: revoke all existing refresh tokens so other sessions are
+      // signed out. The current client will refresh on next 401.
+      await authService.revokeAllRefreshTokens(String(user._id));
+
       return { ok: true as const };
     },
   );

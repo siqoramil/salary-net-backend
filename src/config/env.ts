@@ -10,8 +10,20 @@ const envSchema = z.object({
   MONGODB_URI: z.string().min(1),
   REDIS_URL: z.string().min(1),
 
-  JWT_ACCESS_SECRET: z.string().min(32),
-  JWT_REFRESH_SECRET: z.string().min(32),
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters')
+    .refine(
+      (v) => v !== 'replace_with_strong_random_string_min_32_chars',
+      'JWT_ACCESS_SECRET is still the example placeholder — generate a real secret',
+    ),
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters')
+    .refine(
+      (v) => v !== 'replace_with_another_strong_random_string_32_chars',
+      'JWT_REFRESH_SECRET is still the example placeholder — generate a real secret',
+    ),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('30d'),
 
@@ -36,6 +48,9 @@ const envSchema = z.object({
 
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
+}).refine((data) => data.JWT_ACCESS_SECRET !== data.JWT_REFRESH_SECRET, {
+  message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
+  path: ['JWT_REFRESH_SECRET'],
 });
 
 const parsed = envSchema.safeParse(process.env);

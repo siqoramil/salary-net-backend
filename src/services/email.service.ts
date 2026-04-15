@@ -6,42 +6,40 @@ export interface EmailService {
   sendEmailChangeCode(to: string, code: string): Promise<{ ok: true; provider: string }>;
 }
 
+// Dev-only console logging. In production, if SMTP is not configured we
+// silently succeed (acts as a no-op) rather than spraying secrets to stdout.
+function devLog(label: string, payload: string): void {
+  if (env.NODE_ENV === 'production') return;
+  // eslint-disable-next-line no-console
+  console.log(`[Email:dev] ${label} ${payload}`);
+}
+
 // NOTE: Real SMTP integration via nodemailer can be added once SMTP creds are available.
-// For now, this is a dev-friendly stub that logs the link to the console.
 export const emailService: EmailService = {
   async sendVerificationEmail(to, token) {
     const link = `https://salarynet.app/verify-email?token=${token}`;
     if (!env.SMTP_HOST) {
-      // eslint-disable-next-line no-console
-      console.log(`[Email:dev] verify ${to} -> ${link}`);
-      return { ok: true, provider: 'dev-console' };
+      devLog('verify', `${to} -> ${link}`);
+      return { ok: true, provider: env.NODE_ENV === 'production' ? 'noop' : 'dev-console' };
     }
     // TODO: integrate nodemailer here
-    // eslint-disable-next-line no-console
-    console.log(`[Email:smtp-stub] would send verify to ${to}: ${link}`);
     return { ok: true, provider: 'smtp-stub' };
   },
 
   async sendPasswordResetEmail(to, token) {
     const link = `https://salarynet.app/reset-password?token=${token}`;
     if (!env.SMTP_HOST) {
-      // eslint-disable-next-line no-console
-      console.log(`[Email:dev] reset ${to} -> ${link}`);
-      return { ok: true, provider: 'dev-console' };
+      devLog('reset', `${to} -> ${link}`);
+      return { ok: true, provider: env.NODE_ENV === 'production' ? 'noop' : 'dev-console' };
     }
-    // eslint-disable-next-line no-console
-    console.log(`[Email:smtp-stub] would send reset to ${to}: ${link}`);
     return { ok: true, provider: 'smtp-stub' };
   },
 
   async sendEmailChangeCode(to, code) {
     if (!env.SMTP_HOST) {
-      // eslint-disable-next-line no-console
-      console.log(`[Email:dev] email-change code ${to} -> ${code}`);
-      return { ok: true, provider: 'dev-console' };
+      devLog('email-change code', `${to} -> ${code}`);
+      return { ok: true, provider: env.NODE_ENV === 'production' ? 'noop' : 'dev-console' };
     }
-    // eslint-disable-next-line no-console
-    console.log(`[Email:smtp-stub] would send email-change code to ${to}: ${code}`);
     return { ok: true, provider: 'smtp-stub' };
   },
 };

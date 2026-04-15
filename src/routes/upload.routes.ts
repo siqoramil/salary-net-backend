@@ -48,16 +48,24 @@ export async function uploadRoutes(fastify: FastifyInstance) {
         throw Errors.badRequest(ErrorMessages.UPLOAD_TOO_LARGE, ErrorCodes.UPLOAD_TOO_LARGE);
       }
 
-      const processed = await sharp(buffer, { failOn: 'none' })
-        .rotate()
-        .resize({
-          width: MAX_DIMENSION,
-          height: MAX_DIMENSION,
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
-        .toBuffer();
+      let processed: Buffer;
+      try {
+        processed = await sharp(buffer, { failOn: 'error' })
+          .rotate()
+          .resize({
+            width: MAX_DIMENSION,
+            height: MAX_DIMENSION,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+          .toBuffer();
+      } catch {
+        throw Errors.badRequest(
+          ErrorMessages.UPLOAD_UNSUPPORTED_TYPE,
+          ErrorCodes.UPLOAD_UNSUPPORTED_TYPE,
+        );
+      }
 
       const filename = `${randomUUID()}.jpg`;
       const filepath = join(UPLOAD_DIR, filename);

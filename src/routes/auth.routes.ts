@@ -42,6 +42,13 @@ async function issueTokens(app: FastifyInstance, userId: string) {
   return { accessToken, refreshToken };
 }
 
+// Tight rate limit for credential-testing endpoints. 10 attempts per
+// 15 minutes per IP. Blocks brute-force against valid emails.
+const AUTH_RATE_LIMIT = {
+  max: 10,
+  timeWindow: '15 minutes',
+};
+
 export async function authRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -49,6 +56,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   app.post(
     '/signup',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         tags: ['auth'],
         summary: 'Register a new user with email and password',
@@ -67,6 +75,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   app.post(
     '/signin',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         tags: ['auth'],
         summary: 'Sign in with email and password',
@@ -120,6 +129,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   app.post(
     '/forgot-password',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         tags: ['auth'],
         summary: 'Request password reset email',
@@ -134,6 +144,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   app.post(
     '/reset-password',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         tags: ['auth'],
         summary: 'Set new password using reset token',
