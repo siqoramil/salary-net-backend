@@ -1,11 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 
-import { User } from '../models/index.js';
+import { User, Expense, Budget, Conversation, Message } from '../models/index.js';
 import { OtpCode } from '../models/otpCode.model.js';
 import { Errors } from '../utils/errors.js';
 import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
@@ -16,9 +17,18 @@ import type { UserDoc } from '../models/user.model.js';
 
 const EMAIL_CHANGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_OTP_ATTEMPTS = 5;
+const OTP_CODE_LENGTH = 8;
 
+// Cryptographically random alphanumeric OTP (no ambiguous chars).
+// 8 chars from a 32-char alphabet → 32^8 ≈ 10^12 entropy.
 function generateOtpCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+  const bytes = crypto.randomBytes(OTP_CODE_LENGTH);
+  let out = '';
+  for (let i = 0; i < OTP_CODE_LENGTH; i++) {
+    out += alphabet[bytes[i]! % alphabet.length];
+  }
+  return out;
 }
 
 const userPublicSchema = z.object({
@@ -165,7 +175,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       schema: {
         tags: ['users'],
         security: [{ bearerAuth: [] }],
-        body: z.object({ code: z.string().length(6) }),
+        body: z.object({ code: z.string().length(OTP_CODE_LENGTH) }),
         response: { 200: userPublicSchema },
       },
     },
@@ -190,7 +200,12 @@ export async function userRoutes(fastify: FastifyInstance) {
         throw Errors.tooMany(ErrorMessages.OTP_TOO_MANY_ATTEMPTS, ErrorCodes.OTP_TOO_MANY_ATTEMPTS);
       }
 
-      if (otp.code !== req.body.code) {
+      const providedBuf = Buffer.from(req.body.code);
+      const storedBuf = Buffer.from(otp.code);
+      const codeMatches =
+        providedBuf.length === storedBuf.length &&
+        crypto.timingSafeEqual(providedBuf, storedBuf);
+      if (!codeMatches) {
         otp.attempts = (otp.attempts ?? 0) + 1;
         await otp.save();
         throw Errors.badRequest(ErrorMessages.OTP_INVALID, ErrorCodes.OTP_INVALID);
@@ -262,17 +277,86 @@ export async function userRoutes(fastify: FastifyInstance) {
   );
 
   // ===== Delete account =====
+  // Requires current-password re-confirmation. Cascades through all user-
+  // owned collections so no orphan data remains after deletion.
   app.delete(
     '/me',
     {
       schema: {
         tags: ['users'],
         security: [{ bearerAuth: [] }],
+        body: z.object({ currentPassword: z.string().min(1) }),
         response: { 200: z.object({ ok: z.literal(true) }) },
       },
     },
     async (req) => {
-      await User.findByIdAndDelete(req.user.sub);
+      const userId = req.user.sub;
+      const user = await User.findById(userId);
+      if (!user) throw Errors.notFound(ErrorMessages.USER_NOT_FOUND, ErrorCodes.USER_NOT_FOUND);
+
+      const ok = await bcrypt.compare(req.body.currentPassword, user.passwordHash);
+      if (!ok) {
+        throw Errors.unauthorized(
+          ErrorMessages.CURRENT_PASSWORD_WRONG,
+          ErrorCodes.CURRENT_PASSWORD_WRONG,
+        );
+      }
+
+      // Collect receipt files for best-effort cleanup from disk.
+      const userExpenses = await Expense.find(
+        { userId, receiptUrl: { $ne: null } },
+        { receiptUrl: 1 },
+      ).lean();
+
+      // Find the user's conversations so we can delete their messages too,
+      // since Message is linked by conversationId (no direct userId field).
+      const convIds = await Conversation.find({ userId }, { _id: 1 }).lean();
+
+      await Promise.all([
+        Expense.deleteMany({ userId }),
+        Budget.deleteMany({ userId }),
+        Message.deleteMany({ conversationId: { $in: convIds.map((c) => c._id) } }),
+        Conversation.deleteMany({ userId }),
+        OtpCode.deleteMany({ 'payload.userId': userId }),
+        authService.revokeAllRefreshTokens(userId),
+      ]);
+
+      await User.findByIdAndDelete(userId);
+
+      // Best-effort removal of uploaded receipt images after DB cleanup.
+      for (const exp of userExpenses) {
+        if (!exp.receiptUrl) continue;
+        try {
+          const staticPath = new URL(exp.receiptUrl).pathname;
+          if (!staticPath.startsWith('/static/')) continue;
+          const filePath = path.join(
+            process.cwd(),
+            'uploads',
+            staticPath.replace('/static/', ''),
+          );
+          fs.unlink(filePath).catch(() => {});
+        } catch {
+          // ignore malformed URLs
+        }
+      }
+
+      // Also unlink the avatar, if any.
+      if (user.avatarUrl) {
+        try {
+          const staticPath = new URL(user.avatarUrl).pathname;
+          if (staticPath.startsWith('/static/')) {
+            const filePath = path.join(
+              process.cwd(),
+              'uploads',
+              staticPath.replace('/static/', ''),
+            );
+            fs.unlink(filePath).catch(() => {});
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       return { ok: true as const };
     },
   );

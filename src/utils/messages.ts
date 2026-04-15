@@ -16,6 +16,7 @@ export const ErrorMessages = {
   EMAIL_UNCHANGED: 'Please enter a different email address.',
   EMAIL_IN_USE: 'This email is already used by another account.',
   CURRENT_PASSWORD_WRONG: 'Your current password is incorrect.',
+  ACCOUNT_LOCKED: 'Too many failed login attempts. Please try again in a few minutes.',
 
   // ===== Email change OTP =====
   NO_PENDING_EMAIL_CHANGE: 'No email change is in progress. Please start again.',
@@ -58,6 +59,7 @@ export const ErrorCodes = {
   EMAIL_UNCHANGED: 'EMAIL_UNCHANGED',
   EMAIL_IN_USE: 'EMAIL_IN_USE',
   CURRENT_PASSWORD_WRONG: 'CURRENT_PASSWORD_WRONG',
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
 
   NO_PENDING_EMAIL_CHANGE: 'NO_PENDING_EMAIL_CHANGE',
   OTP_EXPIRED: 'OTP_EXPIRED',

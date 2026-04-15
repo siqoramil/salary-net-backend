@@ -6,40 +6,50 @@ export interface EmailService {
   sendEmailChangeCode(to: string, code: string): Promise<{ ok: true; provider: string }>;
 }
 
-// Dev-only console logging. In production, if SMTP is not configured we
-// silently succeed (acts as a no-op) rather than spraying secrets to stdout.
+const IS_DEV = env.NODE_ENV !== 'production';
+
+// Dev-only console logging. Gated strictly to non-production so OTP codes
+// and reset tokens never appear in prod stdout/log pipelines.
 function devLog(label: string, payload: string): void {
-  if (env.NODE_ENV === 'production') return;
+  if (!IS_DEV) return;
   // eslint-disable-next-line no-console
   console.log(`[Email:dev] ${label} ${payload}`);
 }
 
-// NOTE: Real SMTP integration via nodemailer can be added once SMTP creds are available.
+// In production, any attempt to send without a real SMTP integration must
+// throw — silent success hides broken flows (email change, password reset,
+// verification) from operators until users complain.
+function notImplemented(feature: string): never {
+  throw new Error(
+    `Email provider not implemented for "${feature}". SMTP_HOST is set but ` +
+      'nodemailer integration is missing. Wire up emailService before shipping.',
+  );
+}
+
 export const emailService: EmailService = {
   async sendVerificationEmail(to, token) {
     const link = `https://salarynet.app/verify-email?token=${token}`;
-    if (!env.SMTP_HOST) {
+    if (IS_DEV && !env.SMTP_HOST) {
       devLog('verify', `${to} -> ${link}`);
-      return { ok: true, provider: env.NODE_ENV === 'production' ? 'noop' : 'dev-console' };
+      return { ok: true, provider: 'dev-console' };
     }
-    // TODO: integrate nodemailer here
-    return { ok: true, provider: 'smtp-stub' };
+    notImplemented('sendVerificationEmail');
   },
 
   async sendPasswordResetEmail(to, token) {
     const link = `https://salarynet.app/reset-password?token=${token}`;
-    if (!env.SMTP_HOST) {
+    if (IS_DEV && !env.SMTP_HOST) {
       devLog('reset', `${to} -> ${link}`);
-      return { ok: true, provider: env.NODE_ENV === 'production' ? 'noop' : 'dev-console' };
+      return { ok: true, provider: 'dev-console' };
     }
-    return { ok: true, provider: 'smtp-stub' };
+    notImplemented('sendPasswordResetEmail');
   },
 
   async sendEmailChangeCode(to, code) {
-    if (!env.SMTP_HOST) {
+    if (IS_DEV && !env.SMTP_HOST) {
       devLog('email-change code', `${to} -> ${code}`);
-      return { ok: true, provider: env.NODE_ENV === 'production' ? 'noop' : 'dev-console' };
+      return { ok: true, provider: 'dev-console' };
     }
-    return { ok: true, provider: 'smtp-stub' };
+    notImplemented('sendEmailChangeCode');
   },
 };

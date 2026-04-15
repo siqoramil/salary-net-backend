@@ -48,10 +48,17 @@ const envSchema = z.object({
 
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
-}).refine((data) => data.JWT_ACCESS_SECRET !== data.JWT_REFRESH_SECRET, {
-  message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
-  path: ['JWT_REFRESH_SECRET'],
-});
+})
+  .refine((data) => data.JWT_ACCESS_SECRET !== data.JWT_REFRESH_SECRET, {
+    message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
+    path: ['JWT_REFRESH_SECRET'],
+  })
+  .refine((data) => data.NODE_ENV !== 'production' || !!data.SMTP_HOST, {
+    message:
+      'SMTP_HOST is required in production. Verification, password reset, and ' +
+      'email change all depend on it — shipping without SMTP silently breaks them.',
+    path: ['SMTP_HOST'],
+  });
 
 const parsed = envSchema.safeParse(process.env);
 

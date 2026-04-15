@@ -16,8 +16,23 @@ const BCRYPT_ROUNDS = 12;
 const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 const RESET_TOKEN_TTL_SECONDS = 60 * 30; // 30 min
 
+// Per-account brute-force protection. Independent from the per-IP rate limit
+// on the /signin route so distributed attacks against a single email still
+// get throttled. Counter and lock both live in Redis.
+const LOGIN_FAIL_WINDOW_SECONDS = 15 * 60; // 15 min
+const LOGIN_LOCK_SECONDS = 15 * 60;
+const LOGIN_MAX_FAILS = 8;
+
 function generateOpaqueToken(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+function loginFailKey(email: string): string {
+  return `login_fail:${email}`;
+}
+
+function loginLockKey(email: string): string {
+  return `login_lock:${email}`;
 }
 
 export const authService = {
@@ -41,17 +56,42 @@ export const authService = {
   },
 
   async signIn(input: SignInInput): Promise<UserDoc> {
-    const user = await User.findOne({ email: input.identifier.toLowerCase().trim() });
+    const email = input.identifier.toLowerCase().trim();
+
+    // Short-circuit if this account is currently locked. Same 429 code is
+    // used for rate-limited scenarios so the client can reuse handling.
+    const locked = await redis.get(loginLockKey(email));
+    if (locked) {
+      throw Errors.tooMany(ErrorMessages.ACCOUNT_LOCKED, ErrorCodes.ACCOUNT_LOCKED);
+    }
+
+    const user = await User.findOne({ email });
     if (!user) {
+      // Bump the fail counter even for non-existent emails so probing
+      // yields the same lockout as real accounts (no enumeration signal).
+      await authService.recordLoginFailure(email);
       throw Errors.unauthorized(ErrorMessages.INVALID_CREDENTIALS, ErrorCodes.INVALID_CREDENTIALS);
     }
 
     const ok = await bcrypt.compare(input.password, user.passwordHash);
     if (!ok) {
+      await authService.recordLoginFailure(email);
       throw Errors.unauthorized(ErrorMessages.INVALID_CREDENTIALS, ErrorCodes.INVALID_CREDENTIALS);
     }
 
+    // Success — clear any pending fail counter for this account.
+    await redis.del(loginFailKey(email));
     return user;
+  },
+
+  async recordLoginFailure(email: string): Promise<void> {
+    const key = loginFailKey(email);
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, LOGIN_FAIL_WINDOW_SECONDS);
+    if (count >= LOGIN_MAX_FAILS) {
+      await redis.setex(loginLockKey(email), LOGIN_LOCK_SECONDS, '1');
+      await redis.del(key);
+    }
   },
 
   async forgotPassword(input: ForgotPasswordInput): Promise<{ ok: true }> {
