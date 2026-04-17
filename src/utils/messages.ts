@@ -29,6 +29,10 @@ export const ErrorMessages = {
   EXPENSE_INVALID_ID: 'That expense link is not valid.',
   EXPENSE_NOT_FOUND: 'This expense no longer exists. It may have been deleted.',
 
+  // ===== Debtors =====
+  DEBTOR_INVALID_ID: 'That debtor record link is not valid.',
+  DEBTOR_NOT_FOUND: 'This debtor record no longer exists. It may have been deleted.',
+
   // ===== Chat =====
   CONVERSATION_NOT_FOUND: 'Conversation not found. Start a new chat.',
 
@@ -69,6 +73,9 @@ export const ErrorCodes = {
 
   EXPENSE_INVALID_ID: 'EXPENSE_INVALID_ID',
   EXPENSE_NOT_FOUND: 'EXPENSE_NOT_FOUND',
+
+  DEBTOR_INVALID_ID: 'DEBTOR_INVALID_ID',
+  DEBTOR_NOT_FOUND: 'DEBTOR_NOT_FOUND',
 
   CONVERSATION_NOT_FOUND: 'CONVERSATION_NOT_FOUND',
 

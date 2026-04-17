@@ -26,6 +26,7 @@ import { expenseRoutes } from './routes/expense.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
 import { uploadRoutes } from './routes/upload.routes.js';
+import { debtorRoutes } from './routes/debtor.routes.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -119,6 +120,7 @@ export async function buildApp() {
   await app.register(expenseRoutes, { prefix: '/api/v1/expenses' });
   await app.register(chatRoutes, { prefix: '/api/v1/chat' });
   await app.register(uploadRoutes, { prefix: '/api/v1/upload' });
+  await app.register(debtorRoutes, { prefix: '/api/v1/debtors' });
 
   // ===== Error handler =====
   app.setErrorHandler((error: unknown, req, reply) => {
