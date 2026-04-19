@@ -4,6 +4,7 @@ export interface EmailService {
   sendVerificationEmail(to: string, token: string): Promise<{ ok: true; provider: string }>;
   sendPasswordResetEmail(to: string, token: string): Promise<{ ok: true; provider: string }>;
   sendEmailChangeCode(to: string, code: string): Promise<{ ok: true; provider: string }>;
+  sendAccountDeleteCode(to: string, code: string): Promise<{ ok: true; provider: string }>;
 }
 
 const IS_DEV = env.NODE_ENV !== 'production';
@@ -51,5 +52,13 @@ export const emailService: EmailService = {
       return { ok: true, provider: 'dev-console' };
     }
     notImplemented('sendEmailChangeCode');
+  },
+
+  async sendAccountDeleteCode(to, code) {
+    if (IS_DEV && !env.SMTP_HOST) {
+      devLog('account-delete code', `${to} -> ${code}`);
+      return { ok: true, provider: 'dev-console' };
+    }
+    notImplemented('sendAccountDeleteCode');
   },
 };

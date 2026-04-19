@@ -20,6 +20,7 @@ export const ErrorMessages = {
 
   // ===== Email change OTP =====
   NO_PENDING_EMAIL_CHANGE: 'No email change is in progress. Please start again.',
+  NO_PENDING_ACCOUNT_DELETE: 'No account deletion is in progress. Please start again.',
   OTP_EXPIRED: 'The verification code has expired. Please request a new one.',
   OTP_TOO_MANY_ATTEMPTS: 'Too many incorrect attempts. Please request a new code.',
   OTP_INVALID: 'The code you entered is incorrect. Please try again.',
@@ -66,6 +67,7 @@ export const ErrorCodes = {
   ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
 
   NO_PENDING_EMAIL_CHANGE: 'NO_PENDING_EMAIL_CHANGE',
+  NO_PENDING_ACCOUNT_DELETE: 'NO_PENDING_ACCOUNT_DELETE',
   OTP_EXPIRED: 'OTP_EXPIRED',
   OTP_TOO_MANY_ATTEMPTS: 'OTP_TOO_MANY_ATTEMPTS',
   OTP_INVALID: 'OTP_INVALID',

@@ -5,7 +5,11 @@ const otpCodeSchema = new Schema(
     target: { type: String, required: true, index: true }, // phone or email
     channel: { type: String, enum: ['phone', 'email'], required: true },
     code: { type: String, required: true },
-    purpose: { type: String, enum: ['signup', 'reset_password', 'email_change'], required: true },
+    purpose: {
+      type: String,
+      enum: ['signup', 'reset_password', 'email_change', 'account_delete'],
+      required: true,
+    },
     expiresAt: { type: Date, required: true },
     attempts: { type: Number, default: 0 },
     verified: { type: Boolean, default: false },

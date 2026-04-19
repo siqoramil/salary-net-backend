@@ -6,7 +6,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 
-import { User, Expense, Budget, Conversation, Message } from '../models/index.js';
+import { User, Expense, Budget, Conversation, Message, Debtor } from '../models/index.js';
 import { OtpCode } from '../models/otpCode.model.js';
 import { Errors } from '../utils/errors.js';
 import { ErrorCodes, ErrorMessages } from '../utils/messages.js';
@@ -16,6 +16,7 @@ import { emailService } from '../services/email.service.js';
 import type { UserDoc } from '../models/user.model.js';
 
 const EMAIL_CHANGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const ACCOUNT_DELETE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_OTP_ATTEMPTS = 5;
 const OTP_CODE_LENGTH = 8;
 
@@ -276,17 +277,17 @@ export async function userRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // ===== Delete account =====
-  // Requires current-password re-confirmation. Cascades through all user-
-  // owned collections so no orphan data remains after deletion.
-  app.delete(
-    '/me',
+  // ===== Request account deletion (send OTP to user's email) =====
+  // Step 1 of 2. Caller reconfirms the current password, we email a one-time
+  // code. No data is touched yet — the actual delete happens in step 2.
+  app.post(
+    '/me/delete/request',
     {
       schema: {
         tags: ['users'],
         security: [{ bearerAuth: [] }],
         body: z.object({ currentPassword: z.string().min(1) }),
-        response: { 200: z.object({ ok: z.literal(true) }) },
+        response: { 200: z.object({ ok: z.literal(true), email: z.string() }) },
       },
     },
     async (req) => {
@@ -302,6 +303,78 @@ export async function userRoutes(fastify: FastifyInstance) {
         );
       }
 
+      // Invalidate any previous pending delete OTP for this user.
+      await OtpCode.deleteMany({
+        purpose: 'account_delete',
+        'payload.userId': userId,
+      });
+
+      const code = generateOtpCode();
+      await OtpCode.create({
+        target: user.email,
+        channel: 'email',
+        code,
+        purpose: 'account_delete',
+        expiresAt: new Date(Date.now() + ACCOUNT_DELETE_TTL_MS),
+        payload: { userId },
+      });
+
+      await emailService.sendAccountDeleteCode(user.email, code);
+      return { ok: true as const, email: user.email };
+    },
+  );
+
+  // ===== Delete account (step 2: verify OTP and cascade delete) =====
+  // Cascades through all user-owned collections so no orphan data remains.
+  app.delete(
+    '/me',
+    {
+      schema: {
+        tags: ['users'],
+        security: [{ bearerAuth: [] }],
+        body: z.object({ code: z.string().length(OTP_CODE_LENGTH) }),
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (req) => {
+      const userId = req.user.sub;
+      const user = await User.findById(userId);
+      if (!user) throw Errors.notFound(ErrorMessages.USER_NOT_FOUND, ErrorCodes.USER_NOT_FOUND);
+
+      const otp = await OtpCode.findOne({
+        purpose: 'account_delete',
+        'payload.userId': userId,
+      }).sort({ createdAt: -1 });
+
+      if (!otp) {
+        throw Errors.notFound(
+          ErrorMessages.NO_PENDING_ACCOUNT_DELETE,
+          ErrorCodes.NO_PENDING_ACCOUNT_DELETE,
+        );
+      }
+      if (otp.expiresAt.getTime() < Date.now()) {
+        await otp.deleteOne();
+        throw Errors.badRequest(ErrorMessages.OTP_EXPIRED, ErrorCodes.OTP_EXPIRED);
+      }
+      if ((otp.attempts ?? 0) >= MAX_OTP_ATTEMPTS) {
+        await otp.deleteOne();
+        throw Errors.tooMany(
+          ErrorMessages.OTP_TOO_MANY_ATTEMPTS,
+          ErrorCodes.OTP_TOO_MANY_ATTEMPTS,
+        );
+      }
+
+      const providedBuf = Buffer.from(req.body.code);
+      const storedBuf = Buffer.from(otp.code);
+      const codeMatches =
+        providedBuf.length === storedBuf.length &&
+        crypto.timingSafeEqual(providedBuf, storedBuf);
+      if (!codeMatches) {
+        otp.attempts = (otp.attempts ?? 0) + 1;
+        await otp.save();
+        throw Errors.badRequest(ErrorMessages.OTP_INVALID, ErrorCodes.OTP_INVALID);
+      }
+
       // Collect receipt files for best-effort cleanup from disk.
       const userExpenses = await Expense.find(
         { userId, receiptUrl: { $ne: null } },
@@ -315,6 +388,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       await Promise.all([
         Expense.deleteMany({ userId }),
         Budget.deleteMany({ userId }),
+        Debtor.deleteMany({ userId }),
         Message.deleteMany({ conversationId: { $in: convIds.map((c) => c._id) } }),
         Conversation.deleteMany({ userId }),
         OtpCode.deleteMany({ 'payload.userId': userId }),
